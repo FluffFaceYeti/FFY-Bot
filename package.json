@@ -1,13 +1,14 @@
 {
-  "name": "sot_uk-bot",
+  "name": "ffy-bot",
   "version": "1.0.0",
-  "description": "SoT_UK Bot",
+  "description": "FluffFaceYeti Discord Bot",
   "main": "src/bot.js",
   "scripts": {
     "start": "node src/bot.js"
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.1",
+    "@distube/ytdl-core": "^4.15.1",
     "axios": "^1.13.6",
     "canvas": "^3.2.1",
     "discord.js": "^14.25.1",
@@ -17,7 +18,6 @@
     "opusscript": "^0.0.8",
     "prism-media": "^1.3.5",
     "sodium-native": "^5.1.0",
-    "tweetnacl": "^1.0.3",
-    "ytdl-core": "^4.11.5"
+    "tweetnacl": "^1.0.3"
   }
 }

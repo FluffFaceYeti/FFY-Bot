@@ -1,38 +1,47 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require('@discordjs/voice');
-const ytdl = require('ytdl-core');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
+const ytdl = require("ytdl-core");
 
 const allowedUsers = [
   "883760946814783499",
   "118142105620054016"
 ];
 
-client.on("messageCreate", async (message) => {
+module.exports = {
+name: "pookie",
 
-  if (message.content !== "!pookie") return;
+async execute(message) {
 
-  if (!allowedUsers.includes(message.author.id)) {
+if (!allowedUsers.includes(message.author.id)) {
     return message.reply("you are not the pookie.");
-  }
+}
 
-  const channel = message.member.voice.channel;
-  if (!channel) {
-    return message.reply("you must be in a voice channel.");
-  }
+const voiceChannel = message.member.voice.channel;
 
-  const connection = joinVoiceChannel({
-    channelId: channel.id,
+if (!voiceChannel) {
+    return message.reply("You must be in a voice channel.");
+}
+
+const connection = joinVoiceChannel({
+    channelId: voiceChannel.id,
     guildId: message.guild.id,
     adapterCreator: message.guild.voiceAdapterCreator
-  });
-
-  const stream = ytdl("https://www.youtube.com/watch?v=1ZX1vEDTfY4", {
-    filter: "audioonly"
-  });
-
-  const player = createAudioPlayer();
-  const resource = createAudioResource(stream);
-
-  player.play(resource);
-  connection.subscribe(player);
-
 });
+
+const player = createAudioPlayer();
+
+const stream = ytdl("https://www.youtube.com/watch?v=1ZX1vEDTfY4", {
+    filter: "audioonly",
+    quality: "highestaudio"
+});
+
+const resource = createAudioResource(stream);
+
+connection.subscribe(player);
+player.play(resource);
+
+player.on(AudioPlayerStatus.Idle, () => {
+    connection.destroy();
+});
+
+}
+};

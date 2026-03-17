@@ -1,4 +1,4 @@
 module.exports = {
-    botName: "SoT_UK",
+    botName: "FFY",
     embedColor: "#00b0f4"
 };

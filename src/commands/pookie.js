@@ -1,4 +1,11 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require("@discordjs/voice");
+const { 
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  AudioPlayerStatus,
+  StreamType
+} = require("@discordjs/voice");
+
 const ytdl = require("@distube/ytdl-core");
 
 const allowedUsers = [
@@ -31,13 +38,21 @@ const player = createAudioPlayer();
 
 const stream = ytdl("https://www.youtube.com/watch?v=1ZX1vEDTfY4", {
     filter: "audioonly",
-    quality: "highestaudio"
+    quality: "highestaudio",
+    highWaterMark: 1 << 25
 });
 
-const resource = createAudioResource(stream);
+const resource = createAudioResource(stream, {
+    inputType: StreamType.Arbitrary
+});
 
 connection.subscribe(player);
+
 player.play(resource);
+
+player.on("error", error => {
+    console.error("Audio player error:", error);
+});
 
 player.on(AudioPlayerStatus.Idle, () => {
     connection.destroy();

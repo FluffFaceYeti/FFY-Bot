@@ -2,9 +2,18 @@ const fs = require("fs");
 const path = require("path");
 const { ChannelSelectMenuBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js");
 
-const eventPath = path.join(__dirname, "../data/eventChannels.json");
-const twitchPath = path.join(__dirname, "../data/twitchConfig.json");
-const prefixPath = path.join(__dirname, "../data/prefixes.json");
+// ✅ NEW BASE PATH
+const basePath = path.join(__dirname, "../../userdata");
+
+// ✅ FILE PATHS
+const eventPath = path.join(basePath, "eventChannels.json");
+const twitchPath = path.join(basePath, "twitchConfig.json");
+const prefixPath = path.join(basePath, "prefixes.json");
+
+// ✅ ENSURE FOLDER EXISTS
+if (!fs.existsSync(basePath)) {
+    fs.mkdirSync(basePath, { recursive: true });
+}
 
 module.exports = {
 name: "interactionCreate",
@@ -12,10 +21,9 @@ name: "interactionCreate",
 async execute(interaction, client) {
 
 
-// BUTTON HANDLER (SETUP DASHBOARD)
+// BUTTON HANDLER
 if (interaction.isButton()) {
 
-    // EVENT CHANNEL SETUP
     if (interaction.customId === "setup_event_channels") {
 
         const menu = new ChannelSelectMenuBuilder()
@@ -34,7 +42,6 @@ if (interaction.isButton()) {
         });
     }
 
-    // TWITCH CHANNEL SETUP
     if (interaction.customId === "setup_twitch_channel") {
 
         const menu = new ChannelSelectMenuBuilder()
@@ -53,7 +60,6 @@ if (interaction.isButton()) {
         });
     }
 
-    // PREFIX SETUP
     if (interaction.customId === "setup_prefix") {
 
         const modal = new ModalBuilder()
@@ -73,7 +79,6 @@ if (interaction.isButton()) {
         return interaction.showModal(modal);
     }
 
-    // RESET CONFIG
     if (interaction.customId === "reset_config") {
 
         fs.writeFileSync(eventPath, JSON.stringify({ channels: [] }, null, 2));
@@ -87,10 +92,10 @@ if (interaction.isButton()) {
     }
 }
 
-// CHANNEL SELECT MENUS
+
+// CHANNEL SELECT
 if (interaction.isChannelSelectMenu()) {
 
-    // EVENT VOICE CHANNELS
     if (interaction.customId === "event_channel_select") {
 
         const selectedChannels = interaction.values;
@@ -104,13 +109,14 @@ if (interaction.isChannelSelectMenu()) {
         });
     }
 
-    // TWITCH ALERT CHANNEL
     if (interaction.customId === "twitch_channel_select") {
 
         let config = {};
 
         try {
-            config = JSON.parse(fs.readFileSync(twitchPath));
+            if (fs.existsSync(twitchPath)) {
+                config = JSON.parse(fs.readFileSync(twitchPath));
+            }
         } catch {}
 
         const channelId = interaction.values[0];
@@ -126,18 +132,21 @@ if (interaction.isChannelSelectMenu()) {
     }
 }
 
-// PREFIX MODAL SUBMIT
+
+// PREFIX MODAL
 if (interaction.isModalSubmit()) {
 
     if (interaction.customId === "prefix_modal") {
 
-        const newPrefix = interaction.fields.getTextInputValue("prefix_input");
-
         let prefixes = {};
 
         try {
-            prefixes = JSON.parse(fs.readFileSync(prefixPath));
+            if (fs.existsSync(prefixPath)) {
+                prefixes = JSON.parse(fs.readFileSync(prefixPath));
+            }
         } catch {}
+
+        const newPrefix = interaction.fields.getTextInputValue("prefix_input");
 
         prefixes[interaction.guild.id] = newPrefix;
 
@@ -150,6 +159,7 @@ if (interaction.isModalSubmit()) {
     }
 }
 
+
 // SLASH COMMANDS
 if (!interaction.isChatInputCommand()) return;
 
@@ -157,11 +167,8 @@ const command = client.commands.get(interaction.commandName);
 if (!command) return;
 
 try {
-
     await command.execute(interaction, client);
-
 } catch (error) {
-
     console.error(error);
 
     await interaction.reply({
@@ -169,7 +176,6 @@ try {
         flags: 64
     });
 }
-
 
 }
 };

@@ -37,8 +37,8 @@ if (!fs.existsSync(audioPath)) {
     return message.reply("Pookie audio file missing.");
 }
 
-// send message before joining VC
-message.channel.send("💖 POOKIE TIME 💖");
+// send message and store it
+const statusMessage = await message.channel.send("💖 POOKIE TIME 💖");
 
 const connection = joinVoiceChannel({
     channelId: voiceChannel.id,
@@ -59,8 +59,15 @@ const resource = createAudioResource(
 connection.subscribe(player);
 player.play(resource);
 
-player.once(AudioPlayerStatus.Idle, () => {
+player.once(AudioPlayerStatus.Idle, async () => {
     connection.destroy();
+
+    // delete the message when finished
+    try {
+        await statusMessage.delete();
+    } catch (err) {
+        console.error("Failed to delete message:", err);
+    }
 });
 
 }

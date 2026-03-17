@@ -1,4 +1,4 @@
-const { 
+const {
   joinVoiceChannel,
   createAudioPlayer,
   createAudioResource,
@@ -7,6 +7,7 @@ const {
 } = require("@discordjs/voice");
 
 const ytdl = require("@distube/ytdl-core");
+const prism = require("prism-media");
 
 const allowedUsers = [
   "883760946814783499",
@@ -42,16 +43,25 @@ const stream = ytdl("https://www.youtube.com/watch?v=1ZX1vEDTfY4", {
     highWaterMark: 1 << 25
 });
 
-const resource = createAudioResource(stream, {
-    inputType: StreamType.Arbitrary
+const ffmpeg = new prism.FFmpeg({
+    args: [
+        "-analyzeduration", "0",
+        "-loglevel", "0",
+        "-f", "s16le",
+        "-ar", "48000",
+        "-ac", "2"
+    ]
+});
+
+const resource = createAudioResource(stream.pipe(ffmpeg), {
+    inputType: StreamType.Raw
 });
 
 connection.subscribe(player);
-
 player.play(resource);
 
 player.on("error", error => {
-    console.error("Audio player error:", error);
+    console.error("Audio error:", error);
 });
 
 player.on(AudioPlayerStatus.Idle, () => {

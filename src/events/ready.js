@@ -75,7 +75,7 @@ async function checkTwitch(client) {
 
         isLive = false;
 
-        let statusText = "🏴‍☠️ Stealing your booty 🏴‍☠️";
+        let statusText = "🏴‍☠️ Stealing your pookie 🏴‍☠️";
 
         if (fs.existsSync(statusFile)) {
 
@@ -106,11 +106,11 @@ module.exports = {
 
     execute(client) {
 
-        console.log(`SoT_UK Bot is online as ${client.user.tag}`);
+        console.log(`FFY Bot is online as ${client.user.tag}`);
 
         const statusFile = path.join(__dirname, "..", "data", "status.json");
 
-        let statusText = "🏴‍☠️ Stealing your booty 🏴‍☠️";
+        let statusText = "🏴‍☠️ Stealing your pookie 🏴‍☠️";
 
         if (fs.existsSync(statusFile)) {
 

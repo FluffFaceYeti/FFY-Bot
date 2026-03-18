@@ -19,7 +19,7 @@ async function checkArcEvents(client) {
   try {
     const res = await axios.get("https://metaforge.app/api/arc-raiders/events-schedule");
 
-    // ✅ FIXED API HANDLING
+    // ✅ HANDLE API STRUCTURE
     let maps = res.data;
 
     if (!Array.isArray(maps)) {
@@ -45,11 +45,25 @@ async function checkArcEvents(client) {
     }
 
     const currentIds = new Set();
+    const now = Date.now();
 
-    // collect current events
+    // 🔍 COLLECT ACTIVE EVENTS
     for (const map of maps) {
-      for (const event of (map.currentEvents || [])) {
-        currentIds.add(`${map.name}-${event.name}`);
+
+      const mapName = map.name || map.mapName || "Unknown Map";
+      const events = map.events || [];
+
+      for (const event of events) {
+
+        const eventName = event.name || event.title || "Unknown Event";
+
+        const start = new Date(event.startTime || event.start).getTime();
+        const end = new Date(event.endTime || event.end).getTime();
+
+        // only active events
+        if (now >= start && now <= end) {
+          currentIds.add(`${mapName}-${eventName}`);
+        }
       }
     }
 
@@ -61,20 +75,28 @@ async function checkArcEvents(client) {
       return;
     }
 
-    // 🔥 CHECK FOR NEW EVENTS
+    // 🔥 DETECT NEW ACTIVE EVENTS
     for (const map of maps) {
 
-      const currentEvents = map.currentEvents || [];
+      const mapName = map.name || map.mapName || "Unknown Map";
+      const events = map.events || [];
 
-      for (const event of currentEvents) {
+      for (const event of events) {
 
-        const uniqueId = `${map.name}-${event.name}`;
+        const eventName = event.name || event.title || "Unknown Event";
+
+        const start = new Date(event.startTime || event.start).getTime();
+        const end = new Date(event.endTime || event.end).getTime();
+
+        if (now < start || now > end) continue;
+
+        const uniqueId = `${mapName}-${eventName}`;
 
         if (lastEventIds.has(uniqueId)) continue;
 
-        console.log("New ARC event:", uniqueId);
+        console.log("New ACTIVE ARC event:", uniqueId);
 
-        const imageName = getImageName(map.name);
+        const imageName = getImageName(mapName);
         const imagePath = path.join(imageFolder, imageName);
 
         const embed = new EmbedBuilder()
@@ -83,12 +105,12 @@ async function checkArcEvents(client) {
             name: "ARC RAIDERS",
             iconURL: "https://i.imgur.com/arcicon.png"
           })
-          .setTitle(map.name)
-          .setDescription(`🚨 **NEW EVENT STARTED**\n**${event.name}**`)
+          .setTitle(mapName)
+          .setDescription(`🚨 **NEW EVENT STARTED**\n**${eventName}**`)
           .addFields(
             {
-              name: "Ends In",
-              value: event.endsIn || "Unknown",
+              name: "Ends",
+              value: new Date(end).toLocaleString(),
               inline: true
             }
           )
@@ -97,15 +119,15 @@ async function checkArcEvents(client) {
 
         let files = [];
 
-        // 🖼️ Attach image if exists
+        // 🖼️ Attach image
         if (fs.existsSync(imagePath)) {
           embed.setImage(`attachment://${imageName}`);
           files.push(imagePath);
         } else {
-          console.log("Missing image for:", map.name);
+          console.log("Missing image for:", mapName);
         }
 
-        // 📡 Send to configured channels
+        // 📡 Send to configured servers
         for (const guild of client.guilds.cache.values()) {
 
           const channelId = config[guild.id];

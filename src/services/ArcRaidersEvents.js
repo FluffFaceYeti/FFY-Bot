@@ -6,9 +6,7 @@ const { EmbedBuilder } = require("discord.js");
 const configPath = path.join(__dirname, "../../userdata/arcEvents.json");
 const imageFolder = path.join(__dirname, "../../userdata/data");
 
-// 🧠 Cache
-let lastEventIds = new Set();
-let initialized = false;
+let announcedEvents = new Set();
 
 function getImageName(mapName) {
   return mapName.replace(/\s+/g, "").toLowerCase() + ".jpg";
@@ -19,115 +17,66 @@ async function checkArcEvents(client) {
   try {
     const res = await axios.get("https://metaforge.app/api/arc-raiders/events-schedule");
 
-    // ✅ HANDLE API STRUCTURE
-    let maps = res.data;
+    const events = res.data.data;
 
-    if (!Array.isArray(maps)) {
-      maps = maps.data || maps.maps || [];
-    }
-
-    if (!Array.isArray(maps) || maps.length === 0) {
-      console.error("ARC API returned unexpected format:", res.data);
+    if (!Array.isArray(events)) {
+      console.error("ARC API format error");
       return;
     }
 
-    // ✅ SAFE CONFIG LOAD
+    // load config
     let config = {};
     try {
       if (fs.existsSync(configPath)) {
         const raw = fs.readFileSync(configPath, "utf8");
-        if (raw.trim().length > 0) {
+        if (raw.trim()) {
           config = JSON.parse(raw);
         }
       }
-    } catch (err) {
-      console.error("ARC config load error:", err);
-    }
+    } catch {}
 
-    const currentIds = new Set();
     const now = Date.now();
 
-    // 🔍 COLLECT ACTIVE EVENTS
-    for (const map of maps) {
+    for (const event of events) {
 
-      const mapName = map.name || map.mapName || "Unknown Map";
-      const events = map.events || [];
+      const eventName = event.name;
+      const mapName = event.map;
+      const start = event.startTime;
 
-      for (const event of events) {
+      if (!start) continue;
 
-        const eventName = event.name || event.title || "Unknown Event";
+      const uniqueId = `${mapName}-${eventName}-${start}`;
 
-        const start = new Date(event.startTime || event.start).getTime();
-        const end = new Date(event.endTime || event.end).getTime();
+      // 🔥 clean detection window (1 min)
+      if (now >= start && now <= start + 60000) {
 
-        // only active events
-        if (now >= start && now <= end) {
-          currentIds.add(`${mapName}-${eventName}`);
-        }
-      }
-    }
+        if (announcedEvents.has(uniqueId)) continue;
 
-    // 🚫 FIRST RUN (no spam)
-    if (!initialized) {
-      lastEventIds = currentIds;
-      initialized = true;
-      console.log("ARC events initialized (no alerts sent)");
-      return;
-    }
+        announcedEvents.add(uniqueId);
 
-    // 🔥 DETECT NEW ACTIVE EVENTS
-    for (const map of maps) {
-
-      const mapName = map.name || map.mapName || "Unknown Map";
-      const events = map.events || [];
-
-      for (const event of events) {
-
-        const eventName = event.name || event.title || "Unknown Event";
-
-        const start = new Date(event.startTime || event.start).getTime();
-        const end = new Date(event.endTime || event.end).getTime();
-
-        if (now < start || now > end) continue;
-
-        const uniqueId = `${mapName}-${eventName}`;
-
-        if (lastEventIds.has(uniqueId)) continue;
-
-        console.log("New ACTIVE ARC event:", uniqueId);
+        console.log("ARC EVENT:", uniqueId);
 
         const imageName = getImageName(mapName);
         const imagePath = path.join(imageFolder, imageName);
 
         const embed = new EmbedBuilder()
           .setColor(0x2b2d31)
-          .setAuthor({
-            name: "ARC RAIDERS",
-            iconURL: "https://i.imgur.com/arcicon.png"
-          })
           .setTitle(mapName)
-          .setDescription(`🚨 **NEW EVENT STARTED**\n**${eventName}**`)
-          .addFields(
-            {
-              name: "Ends",
-              value: new Date(end).toLocaleString(),
-              inline: true
-            }
-          )
-          .setFooter({ text: "ARC Event Tracker" })
+          .setDescription(`🚨 **EVENT STARTED**\n**${eventName}**`)
+          .addFields({
+            name: "Start Time",
+            value: new Date(start).toLocaleString(),
+            inline: true
+          })
           .setTimestamp();
 
         let files = [];
 
-        // 🖼️ Attach image
         if (fs.existsSync(imagePath)) {
           embed.setImage(`attachment://${imageName}`);
           files.push(imagePath);
-        } else {
-          console.log("Missing image for:", mapName);
         }
 
-        // 📡 Send to configured servers
         for (const guild of client.guilds.cache.values()) {
 
           const channelId = config[guild.id];
@@ -139,13 +88,10 @@ async function checkArcEvents(client) {
           channel.send({
             embeds: [embed],
             files
-          });
+          }).catch(() => {});
         }
       }
     }
-
-    // update cache
-    lastEventIds = currentIds;
 
   } catch (err) {
     console.error("ARC event error:", err.message);

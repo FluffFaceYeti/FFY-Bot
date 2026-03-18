@@ -19,12 +19,29 @@ async function checkArcEvents(client) {
   try {
     const res = await axios.get("https://metaforge.app/api/arc-raiders/events-schedule");
 
-    const maps = res.data;
-    if (!maps || maps.length === 0) return;
+    // ✅ FIXED API HANDLING
+    let maps = res.data;
 
+    if (!Array.isArray(maps)) {
+      maps = maps.data || maps.maps || [];
+    }
+
+    if (!Array.isArray(maps) || maps.length === 0) {
+      console.error("ARC API returned unexpected format:", res.data);
+      return;
+    }
+
+    // ✅ SAFE CONFIG LOAD
     let config = {};
-    if (fs.existsSync(configPath)) {
-      config = JSON.parse(fs.readFileSync(configPath));
+    try {
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, "utf8");
+        if (raw.trim().length > 0) {
+          config = JSON.parse(raw);
+        }
+      }
+    } catch (err) {
+      console.error("ARC config load error:", err);
     }
 
     const currentIds = new Set();
@@ -36,7 +53,7 @@ async function checkArcEvents(client) {
       }
     }
 
-    // 🚫 first run = no spam
+    // 🚫 FIRST RUN (no spam)
     if (!initialized) {
       lastEventIds = currentIds;
       initialized = true;
@@ -44,6 +61,7 @@ async function checkArcEvents(client) {
       return;
     }
 
+    // 🔥 CHECK FOR NEW EVENTS
     for (const map of maps) {
 
       const currentEvents = map.currentEvents || [];
@@ -77,9 +95,9 @@ async function checkArcEvents(client) {
           .setFooter({ text: "ARC Event Tracker" })
           .setTimestamp();
 
-        // attach image if exists
         let files = [];
 
+        // 🖼️ Attach image if exists
         if (fs.existsSync(imagePath)) {
           embed.setImage(`attachment://${imageName}`);
           files.push(imagePath);
@@ -87,6 +105,7 @@ async function checkArcEvents(client) {
           console.log("Missing image for:", map.name);
         }
 
+        // 📡 Send to configured channels
         for (const guild of client.guilds.cache.values()) {
 
           const channelId = config[guild.id];
@@ -103,6 +122,7 @@ async function checkArcEvents(client) {
       }
     }
 
+    // update cache
     lastEventIds = currentIds;
 
   } catch (err) {

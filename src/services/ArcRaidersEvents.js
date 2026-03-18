@@ -7,16 +7,15 @@ const configPath = path.join(__dirname, "../../userdata/arcEvents.json");
 const imageFolder = path.join(__dirname, "../../userdata/data");
 
 let announcedEvents = new Set();
+let activeEventMessages = new Map(); // track sent messages
 
 function getImageName(mapName) {
   return mapName.replace(/\s+/g, "").toLowerCase() + ".jpg";
 }
 
 async function checkArcEvents(client) {
-
   try {
     const res = await axios.get("https://metaforge.app/api/arc-raiders/events-schedule");
-
     const events = res.data.data;
 
     if (!Array.isArray(events)) {
@@ -38,7 +37,6 @@ async function checkArcEvents(client) {
     const now = Date.now();
 
     for (const event of events) {
-
       const eventName = event.name;
       const mapName = event.map;
       const start = event.startTime;
@@ -46,18 +44,21 @@ async function checkArcEvents(client) {
       if (!start) continue;
 
       const uniqueId = `${mapName}-${eventName}-${start}`;
+      const endTime = start + 15 * 60 * 1000; // ⏱️ adjust duration if needed
 
-      // 🔥 clean detection window (1 min)
+      // =============================
+      // 🔥 POST EVENT (start window)
+      // =============================
       if (now >= start && now <= start + 60000) {
-
         if (announcedEvents.has(uniqueId)) continue;
 
         announcedEvents.add(uniqueId);
-
         console.log("ARC EVENT:", uniqueId);
 
         const imageName = getImageName(mapName);
         const imagePath = path.join(imageFolder, imageName);
+
+        const unix = Math.floor(start / 1000);
 
         const embed = new EmbedBuilder()
           .setColor(0x2b2d31)
@@ -65,19 +66,51 @@ async function checkArcEvents(client) {
           .setDescription(`🚨 **EVENT STARTED**\n**${eventName}**`)
           .addFields({
             name: "Start Time",
-            value: new Date(start).toLocaleString(),
+            value: `<t:${unix}:F>\n<t:${unix}:R>`,
             inline: true
           })
           .setTimestamp();
 
         let files = [];
-
         if (fs.existsSync(imagePath)) {
           embed.setImage(`attachment://${imageName}`);
           files.push(imagePath);
         }
 
         for (const guild of client.guilds.cache.values()) {
+          const channelId = config[guild.id];
+          if (!channelId) continue;
+
+          const channel = await guild.channels.fetch(channelId).catch(() => null);
+          if (!channel) continue;
+
+          const sent = await channel.send({
+            embeds: [embed],
+            files
+          }).catch(() => null);
+
+          if (sent) {
+            if (!activeEventMessages.has(uniqueId)) {
+              activeEventMessages.set(uniqueId, []);
+            }
+
+            activeEventMessages.get(uniqueId).push({
+              guildId: guild.id,
+              messageId: sent.id
+            });
+          }
+        }
+      }
+
+      // =============================
+      // 🧹 DELETE EVENT (after end)
+      // =============================
+      if (now > endTime && activeEventMessages.has(uniqueId)) {
+        const messages = activeEventMessages.get(uniqueId);
+
+        for (const msgData of messages) {
+          const guild = client.guilds.cache.get(msgData.guildId);
+          if (!guild) continue;
 
           const channelId = config[guild.id];
           if (!channelId) continue;
@@ -85,11 +118,13 @@ async function checkArcEvents(client) {
           const channel = await guild.channels.fetch(channelId).catch(() => null);
           if (!channel) continue;
 
-          channel.send({
-            embeds: [embed],
-            files
-          }).catch(() => {});
+          const msg = await channel.messages.fetch(msgData.messageId).catch(() => null);
+          if (msg) {
+            await msg.delete().catch(() => {});
+          }
         }
+
+        activeEventMessages.delete(uniqueId);
       }
     }
 

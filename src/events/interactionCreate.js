@@ -2,13 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const { ChannelSelectMenuBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js");
 
-// ✅ NEW BASE PATH
+// ✅ BASE PATH
 const basePath = path.join(__dirname, "../../userdata");
 
 // ✅ FILE PATHS
 const eventPath = path.join(basePath, "eventChannels.json");
 const twitchPath = path.join(basePath, "twitchConfig.json");
 const prefixPath = path.join(basePath, "prefixes.json");
+const arcPath = path.join(basePath, "arcEvents.json"); // 🎮 NEW
 
 // ✅ ENSURE FOLDER EXISTS
 if (!fs.existsSync(basePath)) {
@@ -21,7 +22,7 @@ name: "interactionCreate",
 async execute(interaction, client) {
 
 
-// BUTTON HANDLER
+// ================= BUTTON HANDLER =================
 if (interaction.isButton()) {
 
     if (interaction.customId === "setup_event_channels") {
@@ -60,6 +61,25 @@ if (interaction.isButton()) {
         });
     }
 
+    // 🎮 ARC EVENTS BUTTON
+    if (interaction.customId === "setup_arc_channel") {
+
+        const menu = new ChannelSelectMenuBuilder()
+            .setCustomId("arc_event_channel_select")
+            .setPlaceholder("Select ARC event alert channel")
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addChannelTypes(0);
+
+        const row = new ActionRowBuilder().addComponents(menu);
+
+        return interaction.reply({
+            content: "Select the channel for ARC event alerts:",
+            components: [row],
+            flags: 64
+        });
+    }
+
     if (interaction.customId === "setup_prefix") {
 
         const modal = new ModalBuilder()
@@ -84,6 +104,7 @@ if (interaction.isButton()) {
         fs.writeFileSync(eventPath, JSON.stringify({ channels: [] }, null, 2));
         fs.writeFileSync(twitchPath, JSON.stringify({}, null, 2));
         fs.writeFileSync(prefixPath, JSON.stringify({}, null, 2));
+        fs.writeFileSync(arcPath, JSON.stringify({}, null, 2)); // 🎮 reset ARC
 
         return interaction.reply({
             content: "⚠️ Bot configuration has been reset.",
@@ -93,9 +114,10 @@ if (interaction.isButton()) {
 }
 
 
-// CHANNEL SELECT
+// ================= CHANNEL SELECT =================
 if (interaction.isChannelSelectMenu()) {
 
+    // EVENT CHANNELS
     if (interaction.customId === "event_channel_select") {
 
         const selectedChannels = interaction.values;
@@ -109,6 +131,7 @@ if (interaction.isChannelSelectMenu()) {
         });
     }
 
+    // TWITCH CHANNEL
     if (interaction.customId === "twitch_channel_select") {
 
         let config = {};
@@ -130,10 +153,33 @@ if (interaction.isChannelSelectMenu()) {
             flags: 64
         });
     }
+
+    // 🎮 ARC EVENTS CHANNEL
+    if (interaction.customId === "arc_event_channel_select") {
+
+        let config = {};
+
+        try {
+            if (fs.existsSync(arcPath)) {
+                config = JSON.parse(fs.readFileSync(arcPath));
+            }
+        } catch {}
+
+        const channelId = interaction.values[0];
+
+        config[interaction.guild.id] = channelId;
+
+        fs.writeFileSync(arcPath, JSON.stringify(config, null, 2));
+
+        return interaction.reply({
+            content: "🎮 ARC event channel saved!",
+            flags: 64
+        });
+    }
 }
 
 
-// PREFIX MODAL
+// ================= PREFIX MODAL =================
 if (interaction.isModalSubmit()) {
 
     if (interaction.customId === "prefix_modal") {
@@ -160,7 +206,7 @@ if (interaction.isModalSubmit()) {
 }
 
 
-// SLASH COMMANDS
+// ================= SLASH COMMANDS =================
 if (!interaction.isChatInputCommand()) return;
 
 const command = client.commands.get(interaction.commandName);

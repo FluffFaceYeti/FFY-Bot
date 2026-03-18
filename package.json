@@ -7,7 +7,7 @@
     "start": "node src/bot.js"
   },
   "dependencies": {
-    "@discordjs/voice": "^0.19.1",
+    "@discordjs/voice": "^0.19.2",
     "@distube/ytdl-core": "^4.16.12",
     "axios": "^1.13.6",
     "canvas": "^3.2.1",

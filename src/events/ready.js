@@ -2,6 +2,9 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
+// 🔥 ARC EVENTS IMPORT
+const { checkArcEvents } = require("../services/ArcRaidersEvents");
+
 let twitchToken = null;
 let isLive = false;
 
@@ -134,10 +137,20 @@ module.exports = {
             status: "online"
         });
 
+        // 🔴 TWITCH SYSTEM
         checkTwitch(client);
-
         setInterval(() => {
             checkTwitch(client);
         }, 90000);
+
+        console.log("Twitch system started");
+
+        // 🎮 ARC EVENTS SYSTEM
+        checkArcEvents(client);
+        setInterval(() => {
+            checkArcEvents(client);
+        }, 60000);
+
+        console.log("ARC event system started");
     }
 };

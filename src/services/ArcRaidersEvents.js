@@ -36,6 +36,9 @@ async function checkArcEvents(client) {
 
     const now = Date.now();
 
+    // =============================
+    // 🔥 POST EVENTS
+    // =============================
     for (const event of events) {
       const eventName = event.name;
       const mapName = event.map;
@@ -44,11 +47,8 @@ async function checkArcEvents(client) {
       if (!start) continue;
 
       const uniqueId = `${mapName}-${eventName}-${start}`;
-      const endTime = start + 15 * 60 * 1000; // ⏱️ adjust duration if needed
 
-      // =============================
-      // 🔥 POST EVENT (start window)
-      // =============================
+      // Only trigger within 1 minute of start
       if (now >= start && now <= start + 60000) {
         if (announcedEvents.has(uniqueId)) continue;
 
@@ -101,12 +101,19 @@ async function checkArcEvents(client) {
           }
         }
       }
+    }
 
-      // =============================
-      // 🧹 DELETE EVENT (after end)
-      // =============================
-      if (now > endTime && activeEventMessages.has(uniqueId)) {
-        const messages = activeEventMessages.get(uniqueId);
+    // =============================
+    // 🧹 CLEANUP OLD EVENTS
+    // =============================
+    for (const [uniqueId, messages] of activeEventMessages.entries()) {
+      const parts = uniqueId.split("-");
+      const start = Number(parts[parts.length - 1]);
+
+      const endTime = start + 15 * 60 * 1000; // ⏱️ adjust duration if needed
+
+      if (now > endTime) {
+        console.log("Deleting expired event:", uniqueId);
 
         for (const msgData of messages) {
           const guild = client.guilds.cache.get(msgData.guildId);
@@ -127,6 +134,8 @@ async function checkArcEvents(client) {
         activeEventMessages.delete(uniqueId);
       }
     }
+
+    console.log("Tracked events:", activeEventMessages.size);
 
   } catch (err) {
     console.error("ARC event error:", err.message);

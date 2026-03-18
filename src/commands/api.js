@@ -11,7 +11,7 @@ module.exports = {
 
  async execute(message, client, args) {
 
-  const prefix = "!"; // change if your prefix changes
+  const prefix = "!";
 
   const commandUsed = message.content
    .slice(prefix.length)

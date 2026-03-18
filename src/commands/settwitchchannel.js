@@ -1,7 +1,7 @@
 const { ChannelSelectMenuBuilder, ActionRowBuilder } = require("discord.js");
 
 module.exports = {
-name: "settwitchchannel",
+name: "twitch",
 
 
 execute(message) {

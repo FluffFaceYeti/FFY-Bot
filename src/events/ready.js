@@ -5,8 +5,12 @@ const path = require("path");
 let twitchToken = null;
 let isLive = false;
 
-async function getTwitchToken() {
+const statusFile = path.join(__dirname, "../../userdata/status.json");
+const configPath = path.join(__dirname, "../../userdata/twitchConfig.json");
 
+const STREAMER = "flufffaceyeti";
+
+async function getTwitchToken() {
     const response = await axios.post(
         "https://id.twitch.tv/oauth2/token",
         null,
@@ -20,7 +24,6 @@ async function getTwitchToken() {
     );
 
     twitchToken = response.data.access_token;
-
 }
 
 async function checkTwitch(client) {
@@ -37,30 +40,38 @@ async function checkTwitch(client) {
                 "Authorization": `Bearer ${twitchToken}`
             },
             params: {
-                user_login: "sot_uk"
+                user_login: STREAMER
             }
         }
     );
 
     const stream = response.data.data[0];
 
-    const statusFile = path.join(__dirname, "..", "data", "status.json");
+    let config = {};
+    try {
+        if (fs.existsSync(configPath)) {
+            config = JSON.parse(fs.readFileSync(configPath));
+        }
+    } catch (err) {
+        console.error("Config load error:", err);
+    }
 
+    // 🔴 LIVE
     if (stream && !isLive) {
 
         isLive = true;
 
-        const channel = client.channels.cache.get("1176953767623675954");
+        for (const guild of client.guilds.cache.values()) {
 
-        if (channel) {
+            const channelId = config[guild.id];
+            if (!channelId) continue;
 
-            channel.send(
-                `🔴 **SoT_UK is LIVE!**\nhttps://www.twitch.tv/sot_uk`
-            );
+            const channel = guild.channels.cache.get(channelId);
+            if (!channel) continue;
 
+            channel.send(`🔴 **${STREAMER} is LIVE!**\nhttps://www.twitch.tv/${STREAMER}`);
         }
 
-        // Change bot status to LIVE
         client.user.setPresence({
             activities: [{
                 name: `LIVE: ${stream.game_name}`,
@@ -68,26 +79,24 @@ async function checkTwitch(client) {
             }],
             status: "online"
         });
-
     }
 
+    // ⚫ OFFLINE
     if (!stream && isLive) {
 
         isLive = false;
 
         let statusText = "🏴‍☠️ Stealing your pookie 🏴‍☠️";
 
-        if (fs.existsSync(statusFile)) {
-
-            const saved = JSON.parse(fs.readFileSync(statusFile));
-
-            if (saved.text) {
-                statusText = saved.text;
+        try {
+            if (fs.existsSync(statusFile)) {
+                const saved = JSON.parse(fs.readFileSync(statusFile));
+                if (saved.text) {
+                    statusText = saved.text;
+                }
             }
+        } catch {}
 
-        }
-
-        // Restore saved status
         client.user.setPresence({
             activities: [{
                 name: statusText,
@@ -95,9 +104,7 @@ async function checkTwitch(client) {
             }],
             status: "online"
         });
-
     }
-
 }
 
 module.exports = {
@@ -108,19 +115,16 @@ module.exports = {
 
         console.log(`FFY Bot is online as ${client.user.tag}`);
 
-        const statusFile = path.join(__dirname, "..", "data", "status.json");
-
         let statusText = "🏴‍☠️ Stealing your pookie 🏴‍☠️";
 
-        if (fs.existsSync(statusFile)) {
-
-            const statusData = JSON.parse(fs.readFileSync(statusFile));
-
-            if (statusData.text) {
-                statusText = statusData.text;
+        try {
+            if (fs.existsSync(statusFile)) {
+                const statusData = JSON.parse(fs.readFileSync(statusFile));
+                if (statusData.text) {
+                    statusText = statusData.text;
+                }
             }
-
-        }
+        } catch {}
 
         client.user.setPresence({
             activities: [{
@@ -130,10 +134,10 @@ module.exports = {
             status: "online"
         });
 
-        // Check Twitch every 90 seconds
+        checkTwitch(client);
+
         setInterval(() => {
             checkTwitch(client);
         }, 90000);
-
     }
 };

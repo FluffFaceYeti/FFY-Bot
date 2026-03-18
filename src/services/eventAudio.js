@@ -11,7 +11,7 @@ const {
   StreamType
 } = require("@discordjs/voice");
 
-const dataPath = path.join(__dirname, "../data/eventChannels.json");
+const dataPath = path.join(__dirname, "../../userdata/eventChannels.json");
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

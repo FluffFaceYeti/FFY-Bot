@@ -7,7 +7,10 @@ const configPath = path.join(__dirname, "../../userdata/arcEvents.json");
 const imageFolder = path.join(__dirname, "../../userdata/data");
 
 let announcedEvents = new Set();
-let activeEventMessages = new Map();
+
+// store messages in order
+let recentMessages = []; 
+// [{ uniqueId, guildId, messageId }]
 
 function getImageName(mapName) {
   return mapName.replace(/\s+/g, "").toLowerCase() + ".jpg";
@@ -37,10 +40,8 @@ async function checkArcEvents(client) {
     }
 
     const now = Date.now();
+    const TWO_MIN = 2 * 60 * 1000;
 
-    // =============================
-    // 🔥 POST EVENTS
-    // =============================
     for (const event of events) {
       const eventName = event.name;
       const mapName = event.map;
@@ -50,122 +51,87 @@ async function checkArcEvents(client) {
 
       const uniqueId = `${mapName}-${eventName}-${start}`;
 
-      if (now >= start && now <= start + 60000) {
-        if (announcedEvents.has(uniqueId)) continue;
+      // ✅ ONLY VERY RECENT EVENTS (last 2 mins)
+      if (now < start || now > start + TWO_MIN) continue;
 
-        announcedEvents.add(uniqueId);
-        console.log("ARC EVENT:", uniqueId);
+      if (announcedEvents.has(uniqueId)) continue;
+      announcedEvents.add(uniqueId);
 
-        const imageName = getImageName(mapName);
-        const imagePath = path.join(imageFolder, imageName);
+      console.log("NEW LIVE EVENT:", uniqueId);
 
-        const unix = Math.floor(start / 1000);
+      const imageName = getImageName(mapName);
+      const imagePath = path.join(imageFolder, imageName);
 
-        const embed = new EmbedBuilder()
-          .setColor(0x2b2d31)
-          .setTitle(mapName)
-          .setDescription(`🚨 **EVENT STARTED**\n**${eventName}**`)
-          .addFields({
-            name: "Start Time",
-            value: `<t:${unix}:F>\n<t:${unix}:R>`,
-            inline: true
-          })
-          .setTimestamp();
+      const unix = Math.floor(start / 1000);
 
-        let files = [];
-        if (fs.existsSync(imagePath)) {
-          embed.setImage(`attachment://${imageName}`);
-          files.push(imagePath);
-        } else {
-          console.log("Image not found:", imagePath);
-        }
+      const embed = new EmbedBuilder()
+        .setColor(0x2b2d31)
+        .setTitle(mapName)
+        .setDescription(`🚨 **EVENT STARTED**\n**${eventName}**`)
+        .addFields({
+          name: "Start Time",
+          value: `<t:${unix}:F>\n<t:${unix}:R>`,
+          inline: true
+        })
+        .setTimestamp();
 
-        for (const guild of client.guilds.cache.values()) {
-          const channelId = config[guild.id];
+      let files = [];
+      if (fs.existsSync(imagePath)) {
+        embed.setImage(`attachment://${imageName}`);
+        files.push(imagePath);
+      }
 
-          if (!channelId) {
-            console.log("No channel configured for guild:", guild.id);
-            continue;
-          }
+      for (const guild of client.guilds.cache.values()) {
+        const channelId = config[guild.id];
+        if (!channelId) continue;
 
-          const channel = await guild.channels.fetch(channelId).catch(err => {
-            console.error("CHANNEL FETCH ERROR:", err);
-            return null;
-          });
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        if (!channel || !channel.isTextBased()) continue;
 
-          if (!channel || !channel.isTextBased()) {
-            console.log("Invalid channel:", channelId);
-            continue;
-          }
+        const sent = await channel.send({
+          embeds: [embed],
+          files
+        }).catch(err => {
+          console.error("SEND ERROR:", err);
+          return null;
+        });
 
-          console.log("Sending to guild:", guild.id, "channel:", channelId);
+        if (!sent) continue;
 
-          const sent = await channel.send({
-            embeds: [embed],
-            files
-          }).catch(err => {
-            console.error("SEND ERROR:", err);
-            return null;
-          });
+        console.log("Posted event:", sent.id);
 
-          if (sent) {
-            console.log("Message sent:", sent.id);
+        // store message
+        recentMessages.push({
+          uniqueId,
+          guildId: guild.id,
+          messageId: sent.id
+        });
 
-            if (!activeEventMessages.has(uniqueId)) {
-              activeEventMessages.set(uniqueId, []);
-            }
+        // =============================
+        // 🧹 KEEP ONLY LAST 3 EVENTS
+        // =============================
+        while (recentMessages.length > 3) {
+          const old = recentMessages.shift();
 
-            activeEventMessages.get(uniqueId).push({
-              guildId: guild.id,
-              messageId: sent.id
-            });
+          const oldGuild = client.guilds.cache.get(old.guildId);
+          if (!oldGuild) continue;
+
+          const oldChannelId = config[old.guildId];
+          if (!oldChannelId) continue;
+
+          const oldChannel = await oldGuild.channels.fetch(oldChannelId).catch(() => null);
+          if (!oldChannel) continue;
+
+          const oldMsg = await oldChannel.messages.fetch(old.messageId).catch(() => null);
+          if (oldMsg) {
+            console.log("Deleting old event:", old.messageId);
+            await oldMsg.delete().catch(() => {});
           }
         }
       }
     }
 
-    // =============================
-    // 🧹 CLEANUP OLD EVENTS
-    // =============================
-    for (const [uniqueId, messages] of activeEventMessages.entries()) {
-      const parts = uniqueId.split("-");
-      const start = Number(parts[parts.length - 1]);
-      const endTime = start + 15 * 60 * 1000;
-
-      if (now > endTime) {
-        console.log("Deleting expired event:", uniqueId);
-
-        for (const msgData of messages) {
-          const guild = client.guilds.cache.get(msgData.guildId);
-          if (!guild) continue;
-
-          const channelId = config[guild.id];
-          if (!channelId) continue;
-
-          const channel = await guild.channels.fetch(channelId).catch(err => {
-            console.error("FETCH DELETE CHANNEL ERROR:", err);
-            return null;
-          });
-
-          if (!channel) continue;
-
-          const msg = await channel.messages.fetch(msgData.messageId).catch(err => {
-            console.error("FETCH MESSAGE ERROR:", err);
-            return null;
-          });
-
-          if (msg) {
-            await msg.delete().catch(err => {
-              console.error("DELETE ERROR:", err);
-            });
-          }
-        }
-
-        activeEventMessages.delete(uniqueId);
-      }
-    }
-
-    console.log("Tracked events:", activeEventMessages.size);
+    console.log("Active messages:", recentMessages.length);
 
   } catch (err) {
     console.error("ARC event error:", err);

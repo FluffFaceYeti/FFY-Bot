@@ -4,6 +4,7 @@ const path = require("path");
 
 // 🔥 ARC EVENTS IMPORT
 const { checkArcEvents } = require("../services/ArcRaidersEvents");
+const { checkBirthdays } = require("../../utils/birthdayCheck");
 
 let twitchToken = null;
 let isLive = false;
@@ -152,5 +153,10 @@ module.exports = {
         }, 60000);
 
         console.log("ARC event system started");
+
+        // 🎂 RUN EVERY MINUTE
+        setInterval(() => {
+            checkBirthdays(client);
+        }, 60 * 1000);
     }
 };

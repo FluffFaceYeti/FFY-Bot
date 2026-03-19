@@ -4,7 +4,7 @@ const path = require("path");
 
 // 🔥 ARC EVENTS IMPORT
 const { checkArcEvents } = require("../services/ArcRaidersEvents");
-const { checkBirthdays } = require("../../utils/birthdayCheck");
+const { checkBirthdays } = require("../utils/birthdayCheck");
 
 let twitchToken = null;
 let isLive = false;

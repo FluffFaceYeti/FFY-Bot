@@ -7,7 +7,7 @@ const configPath = path.join(__dirname, "../../userdata/arcEvents.json");
 const imageFolder = path.join(__dirname, "../../userdata/data");
 
 let announcedEvents = new Set();
-let activeEventMessages = new Map(); // track sent messages
+let activeEventMessages = new Map();
 
 function getImageName(mapName) {
   return mapName.replace(/\s+/g, "").toLowerCase() + ".jpg";
@@ -32,7 +32,9 @@ async function checkArcEvents(client) {
           config = JSON.parse(raw);
         }
       }
-    } catch {}
+    } catch (err) {
+      console.error("CONFIG LOAD ERROR:", err);
+    }
 
     const now = Date.now();
 
@@ -48,7 +50,6 @@ async function checkArcEvents(client) {
 
       const uniqueId = `${mapName}-${eventName}-${start}`;
 
-      // Only trigger within 1 minute of start
       if (now >= start && now <= start + 60000) {
         if (announcedEvents.has(uniqueId)) continue;
 
@@ -75,21 +76,41 @@ async function checkArcEvents(client) {
         if (fs.existsSync(imagePath)) {
           embed.setImage(`attachment://${imageName}`);
           files.push(imagePath);
+        } else {
+          console.log("Image not found:", imagePath);
         }
 
         for (const guild of client.guilds.cache.values()) {
           const channelId = config[guild.id];
-          if (!channelId) continue;
 
-          const channel = await guild.channels.fetch(channelId).catch(() => null);
-          if (!channel) continue;
+          if (!channelId) {
+            console.log("No channel configured for guild:", guild.id);
+            continue;
+          }
+
+          const channel = await guild.channels.fetch(channelId).catch(err => {
+            console.error("CHANNEL FETCH ERROR:", err);
+            return null;
+          });
+
+          if (!channel || !channel.isTextBased()) {
+            console.log("Invalid channel:", channelId);
+            continue;
+          }
+
+          console.log("Sending to guild:", guild.id, "channel:", channelId);
 
           const sent = await channel.send({
             embeds: [embed],
             files
-          }).catch(() => null);
+          }).catch(err => {
+            console.error("SEND ERROR:", err);
+            return null;
+          });
 
           if (sent) {
+            console.log("Message sent:", sent.id);
+
             if (!activeEventMessages.has(uniqueId)) {
               activeEventMessages.set(uniqueId, []);
             }
@@ -109,8 +130,7 @@ async function checkArcEvents(client) {
     for (const [uniqueId, messages] of activeEventMessages.entries()) {
       const parts = uniqueId.split("-");
       const start = Number(parts[parts.length - 1]);
-
-      const endTime = start + 15 * 60 * 1000; // ⏱️ adjust duration if needed
+      const endTime = start + 15 * 60 * 1000;
 
       if (now > endTime) {
         console.log("Deleting expired event:", uniqueId);
@@ -122,12 +142,22 @@ async function checkArcEvents(client) {
           const channelId = config[guild.id];
           if (!channelId) continue;
 
-          const channel = await guild.channels.fetch(channelId).catch(() => null);
+          const channel = await guild.channels.fetch(channelId).catch(err => {
+            console.error("FETCH DELETE CHANNEL ERROR:", err);
+            return null;
+          });
+
           if (!channel) continue;
 
-          const msg = await channel.messages.fetch(msgData.messageId).catch(() => null);
+          const msg = await channel.messages.fetch(msgData.messageId).catch(err => {
+            console.error("FETCH MESSAGE ERROR:", err);
+            return null;
+          });
+
           if (msg) {
-            await msg.delete().catch(() => {});
+            await msg.delete().catch(err => {
+              console.error("DELETE ERROR:", err);
+            });
           }
         }
 
@@ -138,7 +168,7 @@ async function checkArcEvents(client) {
     console.log("Tracked events:", activeEventMessages.size);
 
   } catch (err) {
-    console.error("ARC event error:", err.message);
+    console.error("ARC event error:", err);
   }
 }
 
